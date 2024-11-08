@@ -33,16 +33,34 @@ When you run sample_2jciebu.py, you can see the sensing data on console.
     ```
 
 ## Usage
-Procedure to operate the sample program.
-- sample_2jciebu.py  
-Open Terminal and execute the following command.  
-    ```
-    $ sudo modprobe ftdi_sio
-    $ sudo chmod 777 /sys/bus/usb-serial/drivers/ftdi_sio/new_id
-    $ sudo echo 0590 00d4 > /sys/bus/usb-serial/drivers/ftdi_sio/new_id
-    $ sudo python3 sample_2jciebu.py
-    ```
-    To stop, press Ctrl + C.
+
+Procedure to operate the sample program. Open Terminal and execute the following commands.
+
+### Install FTDI driver
+
+To communicate with 2JCIE-BU via serial interface, you need to install FTDI driver and register the sensor.
+
+```
+$ sudo modprobe ftdi_sio
+$ sudo chmod 777 /sys/bus/usb-serial/drivers/ftdi_sio/new_id
+$ sudo echo 0590 00d4 > /sys/bus/usb-serial/drivers/ftdi_sio/new_id
+```
+
+If you wish to load driver automatically every boot. Add the following line to `/etc/udev/rules.d/99-ftdi.rules`.
+
+```
+ACTION=="add", ATTRS{idVendor}=="0590", ATTRS{idProduct}=="00d4", RUN+="/sbin/modprobe ftdi_sio" RUN+="/bin/sh -c 'echo 0590 00d4 > /sys/bus/usb-serial/drivers/ftdi_sio/new_id'"
+```
+
+### Run sample program
+
+Run `sample_2jciebu.py`.
+
+```
+$ sudo python3 sample_2jciebu.py
+```
+
+To stop, press Ctrl + C.
 
 ## Dependencies
 2jciebu-usb-raspberrypi requires the following dependencies:

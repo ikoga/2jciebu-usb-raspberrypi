@@ -33,17 +33,34 @@ sample_2jciebu.py を実行するとコンソール上でセンシングデー�
     ```
 
 ## 使い方
-サンプルプログラムを動作させる手順です。
 
--  sample_2jciebu.py  
-ターミナルを開き、次のコマンドを実行します。  
-    ```
-    $ sudo modprobe ftdi_sio
-    $ sudo chmod 777 /sys/bus/usb-serial/drivers/ftdi_sio/new_id
-    $ sudo echo 0590 00d4 > /sys/bus/usb-serial/drivers/ftdi_sio/new_id
-    $ sudo python3 sample_2jciebu.py
-    ```
-    停止する際は、Ctrl + C を押します。
+サンプルプログラムを動作させる手順です。ターミナルを開き、次のコマンドを実行します。
+
+### ドライバのインストール
+
+USBシリアルで通信を行うために、FTDIドライバをインストールします。
+
+```
+$ sudo modprobe ftdi_sio
+$ sudo chmod 777 /sys/bus/usb-serial/drivers/ftdi_sio/new_id
+$ sudo echo 0590 00d4 > /sys/bus/usb-serial/drivers/ftdi_sio/new_id
+```
+
+再起動後も自動的にドライバをロードさせたい場合は、`/etc/udev/rules.d/99-ftdi.rules`に下記を追加してください。
+
+```
+ACTION=="add", ATTRS{idVendor}=="0590", ATTRS{idProduct}=="00d4", RUN+="/sbin/modprobe ftdi_sio" RUN+="/bin/sh -c 'echo 0590 00d4 > /sys/bus/usb-serial/drivers/ftdi_sio/new_id'"
+```
+
+### サンプルプログラムの起動
+
+`sample_2jciebu.py` を実行します。
+
+```
+$ sudo python3 sample_2jciebu.py
+```
+
+停止する際は、Ctrl + C を押します。
 
 ## <a name="link"></a>依存関係
 2jciebu01-usb-raspberrypi には次に挙げるソフトウェアとの依存関係があります。
