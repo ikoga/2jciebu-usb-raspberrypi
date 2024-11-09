@@ -1,9 +1,18 @@
 #!/usr/bin/python3
-import serial
+import os
 import time
 from datetime import datetime
 import curses
 import sys
+import argparse
+try:
+    import serial
+except ModuleNotFoundError:
+    print("Error: 必要なモジュール 'pyserial' が見つかりません。\n"
+    "以下のコマンドでインストールするか OS のパッケージマネージャでインストールしてください。")
+    print("    pip3 install pyserial")
+    print("")
+    sys.exit(1)
 
 DISPLAY_RULE_NORMALLY_OFF = 0
 DISPLAY_RULE_NORMALLY_ON = 0
@@ -42,7 +51,7 @@ def get_latest_data(data):
         "Heat stroke": f"{s16(int(hex(data[27]) + '{:02x}'.format(data[26], 'x'), 16)) / 100:.2f}",
     }
 
-def main(stdscr):
+def main(stdscr, serial_device):
     curses.curs_set(0)
     stdscr.nodelay(1)
     stdscr.timeout(1000)
@@ -52,7 +61,7 @@ def main(stdscr):
     curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)  # 白色文字、黒背景
     curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)    # 赤色文字、黒背景
 
-    ser = serial.Serial("/dev/ttyUSB0", 115200, serial.EIGHTBITS, serial.PARITY_NONE)
+    ser = serial.Serial(serial_device, 115200, serial.EIGHTBITS, serial.PARITY_NONE)
 
     try:
         command = bytearray([0x52, 0x42, 0x0a, 0x00, 0x02, 0x11, 0x51, DISPLAY_RULE_NORMALLY_ON, 0x00, 0, 255, 0])
@@ -106,4 +115,23 @@ def main(stdscr):
         ser.close()
         sys.exit()
 
-curses.wrapper(main)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="OMRON 2JCIE-BU01 Sensor Data Display",
+        epilog="Press 'q' to exit the program."
+    )
+    parser.add_argument(
+        "-d", "--device",
+        default="/dev/ttyUSB0",
+        help="Serial device to use (default: /dev/ttyUSB0)"
+    )
+    args = parser.parse_args()
+
+    # デバイスアクセス権の確認
+    if not os.access(args.device, os.R_OK | os.W_OK):
+        print(f"Error: '{args.device}' への読み取り権限がありません。\n"
+              "root で実行するか、環境センサへのアクセス権限を持つユーザで実行してください。")
+        sys.exit(1)
+
+    # curses ラッパーを使って main を呼び出し
+    curses.wrapper(main, args.device)
