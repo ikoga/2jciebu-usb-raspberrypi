@@ -1,11 +1,18 @@
 #!/usr/bin/python3
-import serial
+import os
 import time
 from datetime import datetime
 import curses
 import sys
-import os
 import argparse
+try:
+    import serial
+except ModuleNotFoundError:
+    print("Error: 必要なモジュール 'pyserial' が見つかりません。\n"
+    "以下のコマンドでインストールするか OS のパッケージマネージャでインストールしてください。")
+    print("    pip3 install pyserial")
+    print("")
+    sys.exit(1)
 
 DISPLAY_RULE_NORMALLY_OFF = 0
 DISPLAY_RULE_NORMALLY_ON = 0
