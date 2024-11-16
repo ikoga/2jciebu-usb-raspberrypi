@@ -107,12 +107,12 @@ def main(stdscr, serial_device):
 
             eco2_value = float(latest_data['eCO2'])
             color = curses.color_pair(2) if eco2_value >= THRESHOLD_ECO2 else curses.color_pair(1)
-            stdscr.addstr(3, 35, f"[eCO2] {latest_data['eCO2']}", color)
+            stdscr.addstr(3, 35, f"[eCO2] {latest_data['eCO2']} ppm", color)
             
             stdscr.addstr(5,  0, f"[不快指数] {latest_data['Discomfort index']}")
             stdscr.addstr(5, 35, f"[熱中症度] {latest_data['Heat stroke']}")
 
-            stdscr.addstr(6,  0, f"[総揮発性有機化合物濃度(eTVOC): {latest_data['eTVOC']}")
+            stdscr.addstr(6,  0, f"[総揮発性有機化合物濃度(eTVOC): {latest_data['eTVOC']} ppb")
 
             stdscr.refresh()
 
