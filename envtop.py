@@ -9,7 +9,7 @@ try:
     import serial
 except ModuleNotFoundError:
     print("Error: 必要なモジュール 'pyserial' が見つかりません。\n"
-    "以下のコマンドでインストールするか OS のパッケージマネージャでインストールしてください。")
+          "以下のコマンドでインストールするか OS のパッケージマネージャでインストールしてください。")
     print("    pip3 install pyserial")
     print("")
     sys.exit(1)
@@ -36,48 +36,64 @@ def calc_crc(buf, length):
     crcL = crc & 0x00FF
     return (bytearray([crcL, crcH]))
 
-def get_latest_data(data):
-    # 各データの取得とフォーマット
-    return {
-        "Time measured": datetime.now().strftime("%Y/%m/%d %H:%M:%S"),
-        "Temperature": f"{s16(int(hex(data[9]) + '{:02x}'.format(data[8], 'x'), 16)) / 100:.2f}",
-        "Relative humidity": f"{int(hex(data[11]) + '{:02x}'.format(data[10], 'x'), 16) / 100:.2f}",
-        "Ambient light": str(int(hex(data[13]) + '{:02x}'.format(data[12], 'x'), 16)),
-        "Barometric pressure": f"{int(hex(data[17]) + '{:02x}'.format(data[16], 'x') + '{:02x}'.format(data[15], 'x') + '{:02x}'.format(data[14], 'x'), 16) / 1000:.2f}",
-        "Sound noise": f"{int(hex(data[19]) + '{:02x}'.format(data[18], 'x'), 16) / 100:.2f}",
-        "eTVOC": str(int(hex(data[21]) + '{:02x}'.format(data[20], 'x'), 16)),
-        "eCO2": str(int(hex(data[23]) + '{:02x}'.format(data[22], 'x'), 16)),
-        "Discomfort index": f"{int(hex(data[25]) + '{:02x}'.format(data[24], 'x'), 16) / 100:.2f}",
-        "Heat stroke": f"{s16(int(hex(data[27]) + '{:02x}'.format(data[26], 'x'), 16)) / 100:.2f}",
-    }
-
-def main(stdscr, serial_device):
-    curses.curs_set(0)
-    stdscr.nodelay(1)
-    stdscr.timeout(1000)
-
-    # 色の初期化と設定
-    curses.start_color()
-    curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)  # 白色文字、黒背景
-    curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)    # 赤色文字、黒背景
-
-    ser = serial.Serial(serial_device, 115200, serial.EIGHTBITS, serial.PARITY_NONE)
-
+def fetch_sensor_data(serial_device):
+    """
+    センサから最新のデータを取得してフォーマット済み辞書を返す
+    """
     try:
-        command = bytearray([0x52, 0x42, 0x0a, 0x00, 0x02, 0x11, 0x51, DISPLAY_RULE_NORMALLY_ON, 0x00, 0, 255, 0])
-        command += calc_crc(command, len(command))
-        ser.write(command)
-        time.sleep(0.1)
-        ser.read(ser.inWaiting())
-
-        while ser.isOpen():
+        with serial.Serial(serial_device, 115200, serial.EIGHTBITS, serial.PARITY_NONE) as ser:
+            # データ取得コマンド
             command = bytearray([0x52, 0x42, 0x05, 0x00, 0x01, 0x21, 0x50])
             command += calc_crc(command, len(command))
             ser.write(command)
             time.sleep(0.1)
             data = ser.read(ser.inWaiting())
 
-            latest_data = get_latest_data(data)
+            if len(data) < 28:  # データの不足確認
+                raise ValueError("Incomplete data received from sensor.")
+
+            return {
+                "Time measured": datetime.now().strftime("%Y/%m/%d %H:%M:%S"),
+                "Temperature": f"{s16(int(hex(data[9]) + '{:02x}'.format(data[8], 'x'), 16)) / 100:.2f}",
+                "Relative humidity": f"{int(hex(data[11]) + '{:02x}'.format(data[10], 'x'), 16) / 100:.2f}",
+                "Ambient light": str(int(hex(data[13]) + '{:02x}'.format(data[12], 'x'), 16)),
+                "Barometric pressure": f"{int(hex(data[17]) + '{:02x}'.format(data[16], 'x') + '{:02x}'.format(data[15], 'x') + '{:02x}'.format(data[14], 'x'), 16) / 1000:.2f}",
+                "Sound noise": f"{int(hex(data[19]) + '{:02x}'.format(data[18], 'x'), 16) / 100:.2f}",
+                "eTVOC": str(int(hex(data[21]) + '{:02x}'.format(data[20], 'x'), 16)),
+                "eCO2": str(int(hex(data[23]) + '{:02x}'.format(data[22], 'x'), 16)),
+                "Discomfort index": f"{int(hex(data[25]) + '{:02x}'.format(data[24], 'x'), 16) / 100:.2f}",
+                "Heat stroke": f"{s16(int(hex(data[27]) + '{:02x}'.format(data[26], 'x'), 16)) / 100:.2f}",
+            }
+    except serial.SerialException as e:
+        print(f"Error: デバイスへのアクセスに失敗しました: {e}")
+        sys.exit(1)
+
+def display_csv(serial_device, no_header):
+    """
+    CSV形式で1回データを取得して出力する
+    """
+    latest_data = fetch_sensor_data(serial_device)
+
+    # CSV形式で出力
+    if not no_header:
+        headers = ",".join(latest_data.keys())
+        print(headers)
+    values = ",".join(latest_data.values())
+    print(values)
+
+def main(stdscr, serial_device):
+    curses.curs_set(0)
+    stdscr.nodelay(1)
+    stdscr.timeout(1000)
+
+    curses.start_color()
+    curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)  # 白色文字、黒背景
+    curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)    # 赤色文字、黒背景
+
+    try:
+        while True:
+            latest_data = fetch_sensor_data(serial_device)
+
             stdscr.clear()
             stdscr.addstr(0, 0, f"OMRON 2JCIE-BU01 Sensor           {latest_data['Time measured']}")
             stdscr.addstr(1, 0, f"-----------------------------------------------------")
@@ -91,12 +107,12 @@ def main(stdscr, serial_device):
 
             eco2_value = float(latest_data['eCO2'])
             color = curses.color_pair(2) if eco2_value >= THRESHOLD_ECO2 else curses.color_pair(1)
-            stdscr.addstr(3, 35, f"[eCO2] {latest_data['eCO2']}", color)
+            stdscr.addstr(3, 35, f"[eCO2] {latest_data['eCO2']} ppm", color)
             
             stdscr.addstr(5,  0, f"[不快指数] {latest_data['Discomfort index']}")
             stdscr.addstr(5, 35, f"[熱中症度] {latest_data['Heat stroke']}")
 
-            stdscr.addstr(6,  0, f"[総揮発性有機化合物濃度(eTVOC): {latest_data['eTVOC']}")
+            stdscr.addstr(6,  0, f"[総揮発性有機化合物濃度(eTVOC): {latest_data['eTVOC']} ppb")
 
             stdscr.refresh()
 
@@ -107,13 +123,6 @@ def main(stdscr, serial_device):
 
     except KeyboardInterrupt:
         pass
-    finally:
-        command = bytearray([0x52, 0x42, 0x0a, 0x00, 0x02, 0x11, 0x51, DISPLAY_RULE_NORMALLY_OFF, 0x00, 0, 0, 0])
-        command += calc_crc(command, len(command))
-        ser.write(command)
-        time.sleep(1)
-        ser.close()
-        sys.exit()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -125,13 +134,24 @@ if __name__ == "__main__":
         default="/dev/ttyUSB0",
         help="Serial device to use (default: /dev/ttyUSB0)"
     )
+    parser.add_argument(
+        "--csv",
+        action="store_true",
+        help="Output CSV format"
+    )
+    parser.add_argument(
+        "--no-csv-header",
+        action="store_true",
+        help="Do not print CSV header"
+    )
     args = parser.parse_args()
 
-    # デバイスアクセス権の確認
     if not os.access(args.device, os.R_OK | os.W_OK):
         print(f"Error: '{args.device}' への読み取り権限がありません。\n"
               "root で実行するか、環境センサへのアクセス権限を持つユーザで実行してください。")
         sys.exit(1)
 
-    # curses ラッパーを使って main を呼び出し
-    curses.wrapper(main, args.device)
+    if args.csv:
+        display_csv(args.device, args.no_csv_header)
+    else:
+        curses.wrapper(main, args.device)
