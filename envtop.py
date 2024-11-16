@@ -68,16 +68,17 @@ def fetch_sensor_data(serial_device):
         print(f"Error: デバイスへのアクセスに失敗しました: {e}")
         sys.exit(1)
 
-def display_csv(serial_device):
+def display_csv(serial_device, no_header):
     """
     CSV形式で1回データを取得して出力する
     """
     latest_data = fetch_sensor_data(serial_device)
 
     # CSV形式で出力
-    headers = ",".join(latest_data.keys())
+    if not no_header:
+        headers = ",".join(latest_data.keys())
+        print(headers)
     values = ",".join(latest_data.values())
-    print(headers)
     print(values)
 
 def main(stdscr, serial_device):
@@ -138,6 +139,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Output CSV format"
     )
+    parser.add_argument(
+        "--no-csv-header",
+        action="store_true",
+        help="Do not print CSV header"
+    )
     args = parser.parse_args()
 
     if not os.access(args.device, os.R_OK | os.W_OK):
@@ -146,6 +152,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if args.csv:
-        display_csv(args.device)
+        display_csv(args.device, args.no_csv_header)
     else:
         curses.wrapper(main, args.device)
