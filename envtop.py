@@ -36,6 +36,28 @@ def calc_crc(buf, length):
     crcL = crc & 0x00FF
     return (bytearray([crcL, crcH]))
 
+def get_discomfort_index_label(index):
+    """
+    不快指数に応じた体感の指標を返す
+    """
+    if index < 55:
+        return "寒い"
+    elif 55 <= index < 60:
+        return "肌寒い"
+    elif 60 <= index < 65:
+        return "何も感じない"
+    elif 65 <= index < 70:
+        return "心地よい"
+    elif 70 <= index < 75:
+        return "暑くはない"
+    elif 75 <= index < 80:
+        return "やや暑い"
+    elif 80 <= index < 85:
+        return "暑くて汗が出る"
+    else:
+        return "暑くてたまらない"
+
+
 def fetch_sensor_data(serial_device):
     """
     センサから最新のデータを取得してフォーマット済み辞書を返す
@@ -52,6 +74,8 @@ def fetch_sensor_data(serial_device):
             if len(data) < 28:  # データの不足確認
                 raise ValueError("Incomplete data received from sensor.")
 
+            discomfort_index = int(hex(data[25]) + '{:02x}'.format(data[24], 'x'), 16) / 100
+
             return {
                 "Time measured": datetime.now().strftime("%Y/%m/%d %H:%M:%S"),
                 "Temperature": f"{s16(int(hex(data[9]) + '{:02x}'.format(data[8], 'x'), 16)) / 100:.2f}",
@@ -61,7 +85,7 @@ def fetch_sensor_data(serial_device):
                 "Sound noise": f"{int(hex(data[19]) + '{:02x}'.format(data[18], 'x'), 16) / 100:.2f}",
                 "eTVOC": str(int(hex(data[21]) + '{:02x}'.format(data[20], 'x'), 16)),
                 "eCO2": str(int(hex(data[23]) + '{:02x}'.format(data[22], 'x'), 16)),
-                "Discomfort index": f"{int(hex(data[25]) + '{:02x}'.format(data[24], 'x'), 16) / 100:.2f}",
+                "Discomfort index": discomfort_index,
                 "Heat stroke": f"{s16(int(hex(data[27]) + '{:02x}'.format(data[26], 'x'), 16)) / 100:.2f}",
             }
     except serial.SerialException as e:
@@ -78,7 +102,7 @@ def display_csv(serial_device, no_header):
     if not no_header:
         headers = ",".join(latest_data.keys())
         print(headers)
-    values = ",".join(latest_data.values())
+    values = ",".join(str(value) for value in latest_data.values())
     print(values)
 
 def main(stdscr, serial_device):
@@ -93,6 +117,9 @@ def main(stdscr, serial_device):
     try:
         while True:
             latest_data = fetch_sensor_data(serial_device)
+
+            discomfort_index = latest_data['Discomfort index']
+            discomfort_label = get_discomfort_index_label(discomfort_index)
 
             stdscr.clear()
             stdscr.addstr(0, 0, f"OMRON 2JCIE-BU01 Sensor           {latest_data['Time measured']}")
@@ -109,7 +136,7 @@ def main(stdscr, serial_device):
             color = curses.color_pair(2) if eco2_value >= THRESHOLD_ECO2 else curses.color_pair(1)
             stdscr.addstr(3, 35, f"[eCO2] {latest_data['eCO2']} ppm", color)
             
-            stdscr.addstr(5,  0, f"[不快指数] {latest_data['Discomfort index']}")
+            stdscr.addstr(5,  0, f"[不快指数] {discomfort_index:.2f} ({discomfort_label})")
             stdscr.addstr(5, 35, f"[熱中症度] {latest_data['Heat stroke']}")
 
             stdscr.addstr(6,  0, f"[総揮発性有機化合物濃度(eTVOC): {latest_data['eTVOC']} ppb")
