@@ -1,10 +1,12 @@
 #!/usr/bin/python3
 import os
 import time
-from datetime import datetime
 import curses
 import sys
 import argparse
+from datetime import datetime
+from prometheus_client import CollectorRegistry, Gauge, write_to_textfile
+
 try:
     import serial
 except ModuleNotFoundError:
@@ -14,15 +16,42 @@ except ModuleNotFoundError:
     print("")
     sys.exit(1)
 
+# LED 表示 (0 で off)
 DISPLAY_RULE_NORMALLY_OFF = 0
 DISPLAY_RULE_NORMALLY_ON = 0
 
 # 基準値の設定
 THRESHOLD_ECO2 = 1000
+# Prometheus ファイルの出力先
+PROMETHEUS_FILE_PATH = '/var/lib/prometheus/node-exporter/sensor_omron.prom'
 
 def s16(value):
     return -(value & 0x8000) | (value & 0x7fff)
 
+# Prometheus 用の設定
+registry = CollectorRegistry()
+temperature = Gauge('sensor_omron_temperature', 'Temperature', registry=registry)
+humidity = Gauge('sensor_omron_humidity', 'Humidity', registry=registry)
+light = Gauge('sensor_omron_light', 'Ambient light', registry=registry)
+barometric = Gauge('sensor_omron_barometric', 'Barometric pressure', registry=registry)
+noise = Gauge('sensor_omron_noise', 'Sound noise', registry=registry)
+discomfort = Gauge('sensor_omron_discomfort', 'Discomfort index', registry=registry)
+heat = Gauge('sensor_omron_heat', 'Heat stroke', registry=registry)
+etvoc = Gauge('sensor_omron_etvoc', 'eTVOC', registry=registry)
+eco2 = Gauge('sensor_omron_eco2', 'eCO2', registry=registry)
+
+# データを Prometheus に書き出す関数
+def write_to_prometheus(data):
+    temperature.set(data['Temperature'])
+    humidity.set(data['Relative humidity'])
+    light.set(data['Ambient light'])
+    barometric.set(data['Barometric pressure'])
+    noise.set(data['Sound noise'])
+    discomfort.set(data['Discomfort index'])
+    heat.set(data['Heat stroke'])
+    etvoc.set(data['eTVOC'])
+    eco2.set(data['eCO2'])
+    write_to_textfile(PROMETHEUS_FILE_PATH, registry)
 def calc_crc(buf, length):
     crc = 0xFFFF
     for i in range(length):
@@ -105,6 +134,9 @@ def display_csv(serial_device, no_header):
     values = ",".join(str(value) for value in latest_data.values())
     print(values)
 
+    if args.prometheus_exporter_once:
+        write_to_prometheus(latest_data)
+
 def main(stdscr, serial_device):
     curses.curs_set(0)
     stdscr.nodelay(1)
@@ -146,6 +178,12 @@ def main(stdscr, serial_device):
             if stdscr.getch() == ord('q'):
                 break
 
+            if args.prometheus_exporter or args.prometheus_exporter_once:
+                write_to_prometheus(latest_data)
+
+            if args.prometheus_exporter_once:
+                break
+
             time.sleep(1)
 
     except KeyboardInterrupt:
@@ -156,21 +194,11 @@ if __name__ == "__main__":
         description="OMRON 2JCIE-BU01 Sensor Data Display",
         epilog="Press 'q' to exit the program."
     )
-    parser.add_argument(
-        "-d", "--device",
-        default="/dev/ttyUSB0",
-        help="Serial device to use (default: /dev/ttyUSB0)"
-    )
-    parser.add_argument(
-        "--csv",
-        action="store_true",
-        help="Output CSV format"
-    )
-    parser.add_argument(
-        "--no-csv-header",
-        action="store_true",
-        help="Do not print CSV header"
-    )
+    parser.add_argument("-d", "--device", default="/dev/ttyUSB0", help="Serial device to use (default: /dev/ttyUSB0)")
+    parser.add_argument("--csv", action="store_true", help="Output CSV format")
+    parser.add_argument("--no-csv-header", action="store_true", help="Do not print CSV header")
+    parser.add_argument('--prometheus-exporter', action='store_true', help="Enable Prometheus exporter mode")
+    parser.add_argument('--prometheus-exporter-once', action='store_true', help="Enable Prometheus exporter mode (one-shot)")
     args = parser.parse_args()
 
     if not os.access(args.device, os.R_OK | os.W_OK):
@@ -180,5 +208,6 @@ if __name__ == "__main__":
 
     if args.csv:
         display_csv(args.device, args.no_csv_header)
+
     else:
         curses.wrapper(main, args.device)
