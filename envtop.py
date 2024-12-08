@@ -7,6 +7,8 @@ import argparse
 from datetime import datetime
 from prometheus_client import CollectorRegistry, Gauge, write_to_textfile
 
+version = '1.0 (20241208)'
+
 try:
     import serial
 except ModuleNotFoundError:
@@ -184,22 +186,32 @@ def main(stdscr, serial_device):
             if args.prometheus_exporter_once:
                 break
 
-            time.sleep(1)
+            time.sleep(args.interval)
 
     except KeyboardInterrupt:
         pass
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="OMRON 2JCIE-BU01 Sensor Data Display",
+        description="OMRON 2JCIE-BU01 Sensor Data Display v" + version + "\nhttps://github.com/ikoga/2jciebu-usb-raspberrypi",
         epilog="Press 'q' to exit the program."
     )
     parser.add_argument("-d", "--device", default="/dev/ttyUSB0", help="Serial device to use (default: /dev/ttyUSB0)")
+    parser.add_argument("-i", "--interval", type=int, default=2, help="Data fetch interval in seconds (default: 2)")
     parser.add_argument("--csv", action="store_true", help="Output CSV format")
     parser.add_argument("--no-csv-header", action="store_true", help="Do not print CSV header")
     parser.add_argument('--prometheus-exporter', action='store_true', help="Enable Prometheus exporter mode")
     parser.add_argument('--prometheus-exporter-once', action='store_true', help="Enable Prometheus exporter mode (one-shot)")
+    parser.add_argument("-v", "--version", action='store_true', help="Print version and exit")
     args = parser.parse_args()
+
+    if args.version:
+       print("envtop.py " + version)
+       sys.exit(0)
+
+    if args.interval < 1:
+        print("Error: 更新間隔は 1 以上の整数である必要があります。")
+        sys.exit(1)
 
     if not os.access(args.device, os.R_OK | os.W_OK):
         print(f"Error: '{args.device}' への読み取り権限がありません。\n"
