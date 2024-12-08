@@ -7,6 +7,8 @@ import argparse
 from datetime import datetime
 from prometheus_client import CollectorRegistry, Gauge, write_to_textfile
 
+version = '1.0 (20241208)'
+
 try:
     import serial
 except ModuleNotFoundError:
@@ -191,7 +193,7 @@ def main(stdscr, serial_device):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="OMRON 2JCIE-BU01 Sensor Data Display",
+        description="OMRON 2JCIE-BU01 Sensor Data Display v" + version + "\nhttps://github.com/ikoga/2jciebu-usb-raspberrypi",
         epilog="Press 'q' to exit the program."
     )
     parser.add_argument("-d", "--device", default="/dev/ttyUSB0", help="Serial device to use (default: /dev/ttyUSB0)")
@@ -200,7 +202,12 @@ if __name__ == "__main__":
     parser.add_argument("--no-csv-header", action="store_true", help="Do not print CSV header")
     parser.add_argument('--prometheus-exporter', action='store_true', help="Enable Prometheus exporter mode")
     parser.add_argument('--prometheus-exporter-once', action='store_true', help="Enable Prometheus exporter mode (one-shot)")
+    parser.add_argument("-v", "--version", action='store_true', help="Print version and exit")
     args = parser.parse_args()
+
+    if args.version:
+       print("envtop.py " + version)
+       sys.exit(0)
 
     if args.interval < 1:
         print("Error: 更新間隔は 1 以上の整数である必要があります。")
